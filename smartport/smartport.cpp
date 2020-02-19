@@ -1,71 +1,99 @@
 #include "smartport.h"
 
-AbstractSensor::AbstractSensor(uint16_t dataId, uint8_t refresh, uint8_t alpha) : dataId_(dataId), refresh_(refresh), alpha_(alpha) {}
+AbstractDevice::AbstractDevice() {}
 
-uint16_t AbstractSensor::timestamp() {
+float AbstractDevice::calcAverage(float alpha, float value, float newValue)
+{
+    return value + alpha * (newValue - value);
+}
+
+Sensor::Sensor(uint16_t dataId, uint8_t indexM, uint8_t indexL, uint8_t refresh, AbstractDevice *device) : dataId_(dataId), indexL_(indexL), indexM_(indexM), refresh_(refresh), device_(device) {}
+Sensor::Sensor(uint16_t dataId, uint8_t indexL, uint8_t refresh, AbstractDevice *device) : dataId_(dataId), indexL_(indexL), refresh_(refresh), device_(device) {}
+Sensor::Sensor(uint16_t dataId, uint8_t refresh, AbstractDevice *device) : dataId_(dataId), refresh_(refresh), device_(device) {}
+
+float Sensor::read(uint8_t index)
+{
+    return device_->read(index);
+}
+
+uint8_t Sensor::indexL()
+{
+    return indexL_;
+}
+
+uint8_t Sensor::indexM()
+{
+    return indexM_;
+}
+
+uint16_t Sensor::timestamp()
+{
     return timestamp_;
 }
 
-void AbstractSensor::setTimestamp(uint16_t timestamp) {
+void Sensor::setTimestamp(uint16_t timestamp)
+{
     timestamp_ = timestamp;
 }
 
-uint16_t AbstractSensor::dataId() {
+uint16_t Sensor::dataId()
+{
     return dataId_;
 }
 
-void AbstractSensor::setDataId(uint16_t dataId) {
-    dataId_ = dataId;
-}
-
-uint16_t AbstractSensor::frameId() {
+uint16_t Sensor::frameId()
+{
     return frameId_;
 }
 
-void AbstractSensor::setFrameId(uint16_t frameId) {
-    frameId_ = frameId;
-}
-
-uint8_t AbstractSensor::refresh() {
+uint8_t Sensor::refresh()
+{
     return refresh_;
 }
 
-void AbstractSensor::setRefresh(uint8_t refresh) {
-    refresh_ = refresh;
-}
-
-uint8_t AbstractSensor::alpha() {
-    return alpha_;
-}
-
-void AbstractSensor::setAlpha(uint8_t alpha) {
-    alpha_ = alpha;
-}
-
-float AbstractSensor::valueM() {
-    return valueM_;
-}
-
-void AbstractSensor::setValueM(float valueM) {
-    valueM_ = valueM;
-}
-
-float AbstractSensor::valueL() {
-    return valueM_;
-}
-
-void AbstractSensor::setValueL(float valueL) {
-    valueL_ = valueL;
-}
-
-float AbstractSensor::calcAverage(float alpha, float value, float newValue)
+float Sensor::valueM()
 {
-    return value + alpha / 100.0F * (newValue - value);
+    return valueM_;
+}
+
+void Sensor::setValueM(float value)
+{
+    valueM_ = value;
+}
+
+float Sensor::valueL()
+{
+    return valueM_;
+}
+
+void Sensor::setValueL(float value)
+{
+    valueL_ = value;
 }
 
 Smartport::Smartport(Stream &serial) : serial(serial)
 {
     pinMode(LED_SMARTPORT, OUTPUT);
+}
+
+uint8_t Smartport::sensorId()
+{
+    return sensorId_;
+}
+
+void Smartport::setSensorId(uint8_t sensorId)
+{
+    sensorId_ = sensorId;
+}
+
+void Smartport::setSensorIdTx(uint8_t sensorIdTx)
+{
+    sensorIdTx_ = sensorIdTx;
+}
+
+uint8_t Smartport::maintenanceMode()
+{
+    return maintenanceMode_;
 }
 
 uint8_t Smartport::available()
@@ -171,9 +199,9 @@ uint32_t Smartport::formatData(uint16_t dataId, float valueM, float valueL)
     return round(valueL);
 }
 
-void Smartport::addSensor(AbstractSensor *newSensorP)
+void Smartport::addSensor(Sensor *newSensorP)
 {
-    static AbstractSensor *prevSensorP;
+    static Sensor *prevSensorP;
     if (sensorP == NULL)
     {
         prevSensorP = newSensorP;
@@ -207,8 +235,8 @@ void Smartport::deleteSensors()
 {
     if (sensorP != NULL)
     {
-        AbstractSensor *firstSensorP = sensorP;
-        AbstractSensor *nextSensorP;
+        Sensor *firstSensorP = sensorP;
+        Sensor *nextSensorP;
         do
         {
             nextSensorP = sensorP->nextP;
@@ -267,9 +295,9 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
         uint8_t data[64];
         uint8_t packetType;
         packetType = read(data);
-        if (packetType == RECEIVED_POLL && data[1] == sensorId)
+        if (packetType == RECEIVED_POLL && data[1] == sensorId_)
         {
-            if (packetP != NULL && maintenanceMode) // if maintenance send packet
+            if (packetP != NULL && maintenanceMode_) // if maintenance send packet
             {
                 sendData(packetP->frameId, packetP->dataId, packetP->value);
                 dataId = packetP->dataId;
@@ -278,15 +306,19 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 packetP = NULL;
                 return SENT_PACKET;
             }
-            if (sensorP != NULL && !maintenanceMode) // else send telemetry
+            if (sensorP != NULL && !maintenanceMode_) // else send telemetry
             {
-                AbstractSensor *initSensorP = sensorP;  // loop sensors until correct timestamp or 1 sensors cycle
+                Sensor *initSensorP = sensorP; // loop updating sensors until correct timestamp or 1 sensors cycle
                 while (((uint16_t)millis() - sensorP->timestamp() <= (uint16_t)sensorP->refresh() * 100) || sensorP->nextP == initSensorP)
                 {
+                    sensorP->setValueL(sensorP->read(sensorP->indexL()));
+                    sensorP->setValueM(sensorP->read(sensorP->indexM()));
                     sensorP = sensorP->nextP;
                 }
                 if ((uint16_t)millis() - sensorP->timestamp() >= (uint16_t)sensorP->refresh() * 100)
                 {
+                    sensorP->setValueL(sensorP->read(sensorP->indexL()));
+                    sensorP->setValueM(sensorP->read(sensorP->indexM()));
                     sendData(sensorP->frameId(), sensorP->dataId(), formatData(sensorP->dataId(), sensorP->valueM(), sensorP->valueL()));
                     sensorP->setTimestamp(millis());
                     sensorP = sensorP->nextP;
@@ -303,7 +335,7 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 }
             }
         }
-        else if (packetType == RECEIVED_PACKET && data[1] == sensorIdTx)
+        else if (packetType == RECEIVED_PACKET && data[1] == sensorIdTx_)
         {
             frameId = data[2];
             dataId = (uint16_t)data[4] << 8 | data[3];
@@ -311,13 +343,13 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                     (uint16_t)data[6] << 8 | data[5];
             if (frameId == 0x21 && dataId == 0xFFFF && value == 0x80)
             {
-                maintenanceMode = true;
+                maintenanceMode_ = true;
                 return MAINTENANCE_ON;
             }
             if (frameId == 0x20 && dataId == 0xFFFF && value == 0x80)
             {
-                maintenanceMode = false;
-                return MAINTENANCE_OFF; 
+                maintenanceMode_ = false;
+                return MAINTENANCE_OFF;
             }
             return RECEIVED_PACKET;
         }

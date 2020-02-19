@@ -148,32 +148,40 @@
 
 #include <Arduino.h>
 
-class AbstractSensor
+class AbstractDevice {
+private:
+protected:
+    float calcAverage(float alpha, float value, float newValue);
+public:
+    AbstractDevice();
+    virtual float read(uint8_t index) = 0;
+};
+
+class Sensor
 {
 protected:
     uint16_t timestamp_ = 0, dataId_, frameId_ = 0x10;
-    uint8_t refresh_, alpha_;
     float valueL_ = 0, valueM_ = 0;
+    uint8_t indexL_ = 0, indexM_ = 0;
+    uint8_t refresh_;
+    AbstractDevice *device_;
 public:
-    AbstractSensor(uint16_t dataId, uint8_t refresh, uint8_t alpha);
-    AbstractSensor *nextP = NULL;
+    Sensor(uint16_t dataId, uint8_t indexM, uint8_t indexL, uint8_t refresh, AbstractDevice *device);
+    Sensor(uint16_t dataId, uint8_t indexL, uint8_t refresh, AbstractDevice *device);
+    Sensor(uint16_t dataId, uint8_t refresh, AbstractDevice *device);
+    Sensor *nextP = NULL;
     uint16_t timestamp();
     void setTimestamp(uint16_t dataId);
     uint16_t dataId();
-    void setDataId(uint16_t dataId);
     uint16_t frameId();
-    void setFrameId(uint16_t frameId);
     uint8_t refresh();
-    void setRefresh(uint8_t refresh);
-    uint8_t alpha();
-    void setAlpha(uint8_t alpha);
+    uint8_t indexL();
+    uint8_t indexM();
     float valueL();
     void setValueL(float valueM);
     float valueM();
     void setValueM(float valueM);
-    //Sensor(uint16_t dataId, uint8_t refresh, uint8_t alpha);
-    float calcAverage(float alpha, float value, float newValue);
-    virtual bool read() = 0;
+    float read(uint8_t index);
 };
 
 class Smartport
@@ -186,14 +194,18 @@ private:
         uint32_t value;
     };
     Stream &serial;
-    AbstractSensor *sensorP = NULL;
+    Sensor *sensorP = NULL;
     Packet *packetP = NULL;
-    uint8_t sensorId;
-    uint8_t sensorIdTx;
-    bool maintenanceMode = false;
+    uint8_t sensorId_, sensorIdTx_;
+    bool maintenanceMode_ = false;
     void sendByte(uint8_t c, uint16_t *crcp);
     uint8_t getSensorIdCrc(uint8_t sensorId);
 public:
+    uint8_t sensorId();
+    void setSensorId(uint8_t sensorId);
+    void setSensorIdTx(uint8_t sensorIdTx);
+    uint8_t maintenanceMode();
+    void setmaintenanceMode(uint8_t maintenanceMode);
     Smartport(Stream &serial);
     uint8_t available();
     uint8_t read(uint8_t *data);
@@ -201,7 +213,7 @@ public:
     void sendData(uint8_t frameId, uint16_t dataId, uint32_t val);
     void sendVoid();
     uint32_t formatData(uint16_t dataId, float valueM, float valueL);
-    void addSensor(AbstractSensor *newSensorP);
+    void addSensor(Sensor *newSensorP);
     bool addPacket(uint16_t dataId, uint32_t value);
     bool addPacket(uint8_t frameId, uint16_t dataId, uint32_t value);
     void deleteSensors();
