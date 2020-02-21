@@ -63,7 +63,7 @@ void Sensor::setValueM(float value)
 
 float Sensor::valueL()
 {
-    return valueM_;
+    return valueL_;
 }
 
 void Sensor::setValueL(float value)
@@ -290,11 +290,19 @@ uint8_t Smartport::read(uint8_t *data)
 
 uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
 {
+#ifdef SIM_POLL
+    if (true)
+    {
+        uint8_t data[64];
+        uint8_t packetType = RECEIVED_POLL;
+        data[1] = sensorId_;
+#elif
     if (available())
     {
         uint8_t data[64];
         uint8_t packetType;
         packetType = read(data);
+#endif
         if (packetType == RECEIVED_POLL && data[1] == sensorId_)
         {
             if (packetP != NULL && maintenanceMode_) // if maintenance send packet
@@ -318,11 +326,36 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 if ((uint16_t)millis() - sensorP->timestamp() >= (uint16_t)sensorP->refresh() * 100)
                 {
                     sensorP->setValueL(sensorP->read(sensorP->indexL()));
-                    sensorP->setValueM(sensorP->read(sensorP->indexM()));
+#ifdef DEBUG
+                    Serial.print("dataId: ");
+                    Serial.print(sensorP->dataId(), HEX);
+                    Serial.print(" indexL: ");
+                    Serial.print(sensorP->indexL());
+                    Serial.print(" valueL: ");
+                    Serial.print(sensorP->valueL());
+                    Serial.print(" ts: ");
+                    Serial.println(sensorP->timestamp());
+#endif
+                    if (sensorP->indexM() != 255)
+                    {
+                        sensorP->setValueM(sensorP->read(sensorP->indexM()));
+#ifdef DEBUG
+                        Serial.print("dataId: ");
+                        Serial.print(sensorP->dataId(), HEX);
+                        Serial.print(" indexM: ");
+                        Serial.print(sensorP->indexM());
+                        Serial.print(" valueM: ");
+                        Serial.print(sensorP->valueM());
+                        Serial.print(" ts: ");
+                        Serial.println(sensorP->timestamp());
+#endif
+                    }
                     sendData(sensorP->frameId(), sensorP->dataId(), formatData(sensorP->dataId(), sensorP->valueM(), sensorP->valueL()));
                     sensorP->setTimestamp(millis());
-                    sensorP = sensorP->nextP;
                     dataId = sensorP->dataId();
+                    frameId = 0;
+                    value = 0;
+                    sensorP = sensorP->nextP;
                     return SENT_TELEMETRY;
                 }
                 else

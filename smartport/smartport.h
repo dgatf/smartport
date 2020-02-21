@@ -13,6 +13,10 @@
 #define LED_SMARTPORT LED_BUILTIN
 #define SMARTPORT_TIMEOUT 2
 
+#define DEBUG
+#define SIM_POLL
+#define SIM_SENSORS
+
 #define SENSOR_ID_1 0x00 // VARIO 0x100 (0 in opentx lua: id - 1)
 #define SENSOR_ID_2 0xA1 // FLVSS 0x300
 #define SENSOR_ID_3 0x22 // FAS40-S 0x200
@@ -162,7 +166,7 @@ class Sensor
 protected:
     uint16_t timestamp_ = 0, dataId_, frameId_ = 0x10;
     float valueL_ = 0, valueM_ = 0;
-    uint8_t indexL_ = 0, indexM_ = 0;
+    uint8_t indexL_ = 0, indexM_ = 255;
     uint8_t refresh_;
     AbstractDevice *device_;
 public:
