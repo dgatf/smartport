@@ -71,9 +71,14 @@ void Sensor::setValueL(float value)
     valueL_ = value;
 }
 
-Smartport::Smartport(Stream &serial) : serial(serial)
+Smartport::Smartport(Stream &serial) : serial_(serial)
 {
     pinMode(LED_SMARTPORT, OUTPUT);
+}
+
+Smartport::~Smartport()
+{
+    deleteSensors();
 }
 
 uint8_t Smartport::sensorId()
@@ -98,7 +103,7 @@ uint8_t Smartport::maintenanceMode()
 
 uint8_t Smartport::available()
 {
-    return serial.available();
+    return serial_.available();
 }
 
 uint8_t Smartport::getSensorIdCrc(uint8_t sensorId)
@@ -125,11 +130,11 @@ void Smartport::sendByte(uint8_t c, uint16_t *crcp)
 
     if (c == 0x7D || c == 0x7E)
     {
-        serial.write(0x7D);
+        serial_.write(0x7D);
         c ^= 0x20;
     }
 
-    serial.write(c);
+    serial_.write(c);
 }
 
 void Smartport::sendData(uint16_t dataId, uint32_t val)
@@ -162,7 +167,7 @@ void Smartport::sendData(uint8_t typeId, uint16_t dataId, uint32_t val)
 void Smartport::sendVoid()
 {
     uint8_t buf[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF};
-    serial.write(buf, 8);
+    serial_.write(buf, 8);
 }
 
 uint32_t Smartport::formatData(uint16_t dataId, float valueM, float valueL)
@@ -197,6 +202,11 @@ uint32_t Smartport::formatData(uint16_t dataId, float valueM, float valueL)
         return (uint16_t)round(valueM * 500) << 8 | (uint16_t)valueL;
 
     return round(valueL);
+}
+
+uint32_t Smartport::formatData(uint16_t dataId, float valueL)
+{
+    return formatData(dataId, 0, valueL);
 }
 
 void Smartport::addSensor(Sensor *newSensorP)
@@ -250,18 +260,18 @@ void Smartport::deleteSensors()
 uint8_t Smartport::read(uint8_t *data)
 {
     uint8_t cont = 0;
-    if (serial.available())
+    if (serial_.available())
     {
         uint16_t tsRead = millis();
         uint16_t crc = 0;
-        while ((uint16_t)millis() - tsRead < SMARTPORT_TIMEOUT)
+        while ((uint16_t)millis() - tsRead < SMARTPORT_TIMEOUT || cont == 10)
         {
-            if (serial.available())
+            if (serial_.available())
             {
-                data[cont] = serial.read();
+                data[cont] = serial_.read();
                 if (data[cont] == 0x7D)
                 {
-                    data[cont] = serial.read() ^ 0x20;
+                    data[cont] = serial_.read() ^ 0x20;
                 }
                 cont++;
             }
@@ -293,13 +303,13 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
 #ifdef SIM_POLL
     if (true)
     {
-        uint8_t data[64];
+        uint8_t data[10];
         uint8_t packetType = RECEIVED_POLL;
         data[1] = sensorId_;
-#elif
+#else
     if (available())
     {
-        uint8_t data[64];
+        uint8_t data[10];
         uint8_t packetType;
         packetType = read(data);
 #endif
@@ -317,14 +327,15 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
             if (sensorP != NULL && !maintenanceMode_) // else send telemetry
             {
                 Sensor *initSensorP = sensorP; // loop updating sensors until correct timestamp or 1 sensors cycle
-                while (((uint16_t)millis() - sensorP->timestamp() <= (uint16_t)sensorP->refresh() * 100) || sensorP->nextP == initSensorP)
+                while (((uint16_t)millis() - sensorP->timestamp() <= (uint16_t)sensorP->refresh() * 100) && sensorP->nextP != initSensorP)
                 {
                     sensorP->setValueL(sensorP->read(sensorP->indexL()));
                     sensorP->setValueM(sensorP->read(sensorP->indexM()));
-                    sensorP = sensorP->nextP;
+                    sensorP = sensorP->nextP;   
                 }
                 if ((uint16_t)millis() - sensorP->timestamp() >= (uint16_t)sensorP->refresh() * 100)
                 {
+
                     sensorP->setValueL(sensorP->read(sensorP->indexL()));
 #ifdef DEBUG
                     Serial.print("dataId: ");
@@ -409,5 +420,5 @@ bool Smartport::sendPacketReady()
 {
     sensorId = getSensorIdMatrix(sensorId);
     sensorIdTx = getSensorIdMatrix(sensorIdTx);
-    //serial.begin(baudRate);
+    //serial_.begin(baudRate);
 }*/

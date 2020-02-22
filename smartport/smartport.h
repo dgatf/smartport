@@ -13,9 +13,9 @@
 #define LED_SMARTPORT LED_BUILTIN
 #define SMARTPORT_TIMEOUT 2
 
-#define DEBUG
-#define SIM_POLL
-#define SIM_SENSORS
+//#define DEBUG
+//#define SIM_POLL
+//#define SIM_SENSORS
 
 #define SENSOR_ID_1 0x00 // VARIO 0x100 (0 in opentx lua: id - 1)
 #define SENSOR_ID_2 0xA1 // FLVSS 0x300
@@ -140,9 +140,9 @@
 #define FUEL_QTY_FIRST_ID 0x0a10 // 100 ml
 #define FUEL_QTY_LAST_ID 0x0a1f
 
-#define RECEIVED_POLL 0
-#define RECEIVED_PACKET 1
-#define RECEIVED_NONE 2
+#define RECEIVED_NONE 0
+#define RECEIVED_POLL 1
+#define RECEIVED_PACKET 2
 #define SENT_TELEMETRY 3
 #define SENT_VOID 4
 #define SENT_PACKET 5
@@ -197,26 +197,29 @@ private:
         uint16_t dataId;
         uint32_t value;
     };
-    Stream &serial;
+    Stream &serial_;
     Sensor *sensorP = NULL;
     Packet *packetP = NULL;
     uint8_t sensorId_, sensorIdTx_;
     bool maintenanceMode_ = false;
     void sendByte(uint8_t c, uint16_t *crcp);
-    uint8_t getSensorIdCrc(uint8_t sensorId);
 public:
-    uint8_t sensorId();
-    void setSensorId(uint8_t sensorId);
-    void setSensorIdTx(uint8_t sensorIdTx);
-    uint8_t maintenanceMode();
-    void setmaintenanceMode(uint8_t maintenanceMode);
     Smartport(Stream &serial);
+    ~Smartport();
+    uint8_t getSensorIdCrc(uint8_t sensorId);
     uint8_t available();
     uint8_t read(uint8_t *data);
     void sendData(uint16_t dataId, uint32_t val);
     void sendData(uint8_t frameId, uint16_t dataId, uint32_t val);
     void sendVoid();
     uint32_t formatData(uint16_t dataId, float valueM, float valueL);
+    uint32_t formatData(uint16_t dataId, float valueL);
+
+    uint8_t sensorId();
+    void setSensorId(uint8_t sensorId);
+    void setSensorIdTx(uint8_t sensorIdTx);
+    uint8_t maintenanceMode();
+    void setmaintenanceMode(uint8_t maintenanceMode);
     void addSensor(Sensor *newSensorP);
     bool addPacket(uint16_t dataId, uint32_t value);
     bool addPacket(uint8_t frameId, uint16_t dataId, uint32_t value);
