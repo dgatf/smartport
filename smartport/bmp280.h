@@ -56,7 +56,7 @@
 #include "i2c.h"
 #include "bmp.h"
 
-class Bmp280Interface : public AbstractBmp
+class Bmp280Interface : public Bmp
 {
 private:
     uint16_t T1_, P1_;
@@ -75,7 +75,7 @@ public:
         SAMPLING_X8 = 0x04,
         SAMPLING_X16 = 0x05
     };
-    Bmp280Interface(TwoWire &wire,  uint8_t address_, uint8_t alphaTemp_, uint8_t alphaDef_);
+    Bmp280Interface(uint8_t address_, uint8_t alphaTemp_, uint8_t alphaDef_);
     bool begin();
     float read(uint8_t index);
 };

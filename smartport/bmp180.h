@@ -25,7 +25,7 @@
 #include "i2c.h"
 #include "bmp.h"
 
-class Bmp180Interface : public AbstractBmp
+class Bmp180Interface : public Bmp
 {
     private:
         int16_t AC1_, AC2_, AC3_, VB1_, VB2_, MB_, MC_, MD_;
@@ -37,7 +37,7 @@ class Bmp180Interface : public AbstractBmp
         bool readTemperature();
         bool readPressure();
 	public:
-        Bmp180Interface(TwoWire &wire, uint8_t alphaTemp, uint8_t alphaDef, uint8_t address);
+        Bmp180Interface(uint8_t alphaTemp, uint8_t alphaDef, uint8_t address);
         bool begin();
         float read(uint8_t index);		
 };

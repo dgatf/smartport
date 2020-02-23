@@ -1,11 +1,9 @@
 #include "bmp180.h"
 
-Bmp180Interface::Bmp180Interface(TwoWire &wire, uint8_t address, uint8_t alphaTemp, uint8_t alphaDef) : AbstractBmp(wire_, address_, alphaTemp_, alphaDef_) {}
+Bmp180Interface::Bmp180Interface(uint8_t address, uint8_t alphaTemp, uint8_t alphaDef) : Bmp(alphaTemp_, alphaDef_, address_) {}
 
 bool Bmp180Interface::begin()
 {
-    //wire_.begin();
-    Serial.println(millis());
     float c3, c4, b1;
     if (readInt(address_, 0xAA, AC1_) &&
         readInt(address_, 0xAC, AC2_) &&
@@ -168,14 +166,14 @@ float Bmp180Interface::read(uint8_t index)
 {
     if (index == BMP_TEMPERATURE)
     {
-#ifdef SIM_POLL
+#ifdef SIM_SENSORS
         return 25;
 #endif
         readTemperature();
         return temperature_;
     }
-#ifdef SIM_POLL
-    return 25;
+#ifdef SIM_SENSORS
+    return 126;
 #endif
     if (readPressure())
     {

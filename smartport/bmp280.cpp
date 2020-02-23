@@ -1,6 +1,6 @@
 #include "bmp280.h"
 
-Bmp280Interface::Bmp280Interface(TwoWire &wire, uint8_t address, uint8_t alphaTemp, uint8_t alphaDef) : AbstractBmp(wire_, alphaTemp_, alphaDef_, address_)
+Bmp280Interface::Bmp280Interface(uint8_t address, uint8_t alphaTemp, uint8_t alphaDef) : Bmp(alphaTemp_, alphaDef_, address_)
 {
     uint8_t configReg[2];
     configReg[0] = BMP280_REGISTER_CONFIG;
@@ -111,14 +111,14 @@ float Bmp280Interface::read(uint8_t index)
 {
     if (index == BMP_TEMPERATURE)
     {
-#ifdef SIM_POLL
-        return 25;
+#ifdef SIM_SENSORS
+        return 46;
 #endif
         readTemperature();
         return temperature_;
     }
-#ifdef SIM_POLL
-    return 500;
+#ifdef SIM_SENSORS
+    return 900;
 #endif
     if (readPressure())
     {

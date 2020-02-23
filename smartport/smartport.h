@@ -149,6 +149,9 @@
 #define SENT_NONE 6
 #define MAINTENANCE_ON 7
 #define MAINTENANCE_OFF 8
+#define SENT_SENSOR_ID 9
+#define CHANGED_SENSOR_ID 10
+
 
 #include <Arduino.h>
 
@@ -201,12 +204,15 @@ private:
     Sensor *sensorP = NULL;
     Packet *packetP = NULL;
     uint8_t sensorId_, sensorIdTx_;
+    uint16_t dataId_;
     bool maintenanceMode_ = false;
     void sendByte(uint8_t c, uint16_t *crcp);
 public:
+    //Smartport(Stream &serial, uint8_t dataId, uint8_t sensorId, uint8_t sensorIdTx);
     Smartport(Stream &serial);
     ~Smartport();
-    uint8_t getSensorIdCrc(uint8_t sensorId);
+    uint8_t idToCrc(uint8_t sensorId);
+    uint8_t crcToId(uint8_t sensorIdCrc);
     uint8_t available();
     uint8_t read(uint8_t *data);
     void sendData(uint16_t dataId, uint32_t val);
@@ -215,6 +221,7 @@ public:
     uint32_t formatData(uint16_t dataId, float valueM, float valueL);
     uint32_t formatData(uint16_t dataId, float valueL);
 
+    void setDataId(uint16_t dataId);
     uint8_t sensorId();
     void setSensorId(uint8_t sensorId);
     void setSensorIdTx(uint8_t sensorIdTx);

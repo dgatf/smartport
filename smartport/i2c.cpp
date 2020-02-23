@@ -1,8 +1,8 @@
 #include "i2c.h"
 
-AbstractI2C::AbstractI2C(TwoWire &wire) : wire_(wire) {}
+I2C::I2C() {}
 
-uint8_t AbstractI2C::readInt(uint8_t device, uint8_t address, int16_t &value)
+uint8_t I2C::readInt(uint8_t device, uint8_t address, int16_t &value)
 {
     uint8_t data[2];
     data[0] = address;
@@ -16,7 +16,7 @@ uint8_t AbstractI2C::readInt(uint8_t device, uint8_t address, int16_t &value)
     return 0;
 }
 
-uint8_t AbstractI2C::readUInt(uint8_t device, uint8_t address, uint16_t &value)
+uint8_t I2C::readUInt(uint8_t device, uint8_t address, uint16_t &value)
 {
     uint8_t data[2];
 
@@ -30,7 +30,7 @@ uint8_t AbstractI2C::readUInt(uint8_t device, uint8_t address, uint16_t &value)
     return 0;
 }
 
-uint8_t AbstractI2C::readBytes(uint8_t device, uint8_t *values, uint8_t length)
+uint8_t I2C::readBytes(uint8_t device, uint8_t *values, uint8_t length)
 {
     uint8_t x;
     Wire.beginTransmission(device);
@@ -49,7 +49,7 @@ uint8_t AbstractI2C::readBytes(uint8_t device, uint8_t *values, uint8_t length)
     return 0;
 }
 
-uint8_t AbstractI2C::writeBytes(uint8_t device, uint8_t *values, uint8_t length)
+uint8_t I2C::writeBytes(uint8_t device, uint8_t *values, uint8_t length)
 {
     Wire.beginTransmission(device);
     Wire.write(values, length);

@@ -91,6 +91,11 @@ void Smartport::setSensorId(uint8_t sensorId)
     sensorId_ = sensorId;
 }
 
+void Smartport::setDataId(uint16_t dataId)
+{
+    dataId_ = dataId;
+}
+
 void Smartport::setSensorIdTx(uint8_t sensorIdTx)
 {
     sensorIdTx_ = sensorIdTx;
@@ -106,14 +111,25 @@ uint8_t Smartport::available()
     return serial_.available();
 }
 
-uint8_t Smartport::getSensorIdCrc(uint8_t sensorId)
+uint8_t Smartport::idToCrc(uint8_t sensorId)
 {
-    uint8_t sensorIdMatrix[28] = {0x00, 0xA1, 0x22, 0x83, 0xE4, 0x45, 0xC6, 0x67, 0x48, 0xE9, 0x6A, 0xCB, 0xAC, 0xD, 0x8E, 0x2F, 0xD0, 0x71, 0xF2, 0x53, 0x34, 0x95, 0x16, 0xB7, 0x98, 0x39, 0xBA, 0x1B};
+    const uint8_t sensorIdMatrix[28] = {0x00, 0xA1, 0x22, 0x83, 0xE4, 0x45, 0xC6, 0x67, 0x48, 0xE9, 0x6A, 0xCB, 0xAC, 0xD, 0x8E, 0x2F, 0xD0, 0x71, 0xF2, 0x53, 0x34, 0x95, 0x16, 0xB7, 0x98, 0x39, 0xBA, 0x1B};
     if (sensorId > 28)
     {
         return 0;
     }
     return sensorIdMatrix[sensorId - 1];
+}
+
+uint8_t Smartport::crcToId(uint8_t sensorIdCrc)
+{
+    const uint8_t sensorIdMatrix[29] = {0x00, 0xA1, 0x22, 0x83, 0xE4, 0x45, 0xC6, 0x67, 0x48, 0xE9, 0x6A, 0xCB, 0xAC, 0xD, 0x8E, 0x2F, 0xD0, 0x71, 0xF2, 0x53, 0x34, 0x95, 0x16, 0xB7, 0x98, 0x39, 0xBA, 0x1B, 0x0};
+    uint8_t cont = 0;
+    while (sensorIdCrc != sensorIdMatrix[cont] && cont < 28) {
+        cont++;    
+    }
+    if (cont == 28) return 0;
+    return cont + 1;
 }
 
 void Smartport::sendByte(uint8_t c, uint16_t *crcp)
@@ -264,7 +280,7 @@ uint8_t Smartport::read(uint8_t *data)
     {
         uint16_t tsRead = millis();
         uint16_t crc = 0;
-        while ((uint16_t)millis() - tsRead < SMARTPORT_TIMEOUT || cont == 10)
+        while ((uint16_t)millis() - tsRead < SMARTPORT_TIMEOUT || cont == 11)
         {
             if (serial_.available())
             {
@@ -288,9 +304,13 @@ uint8_t Smartport::read(uint8_t *data)
             }
             crc = 0xFF - (uint8_t)crc;
             if (crc != data[9])
+            {
                 return RECEIVED_NONE;
+            }
             else
+            {
                 return RECEIVED_PACKET;
+            }
         }
         if (cont == 2)
             return RECEIVED_POLL;
@@ -322,6 +342,14 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 value = packetP->value;
                 free(packetP);
                 packetP = NULL;
+#ifdef DEBUG
+                Serial.print("Sent frameId: ");
+                Serial.print(packetP->frameId);
+                Serial.print(" dataId: ");
+                Serial.print(packetP->dataId);
+                Serial.print(" value: ");
+                Serial.println(packetP->value);
+#endif
                 return SENT_PACKET;
             }
             if (sensorP != NULL && !maintenanceMode_) // else send telemetry
@@ -331,7 +359,7 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 {
                     sensorP->setValueL(sensorP->read(sensorP->indexL()));
                     sensorP->setValueM(sensorP->read(sensorP->indexM()));
-                    sensorP = sensorP->nextP;   
+                    sensorP = sensorP->nextP;
                 }
                 if ((uint16_t)millis() - sensorP->timestamp() >= (uint16_t)sensorP->refresh() * 100)
                 {
@@ -340,6 +368,8 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
 #ifdef DEBUG
                     Serial.print("dataId: ");
                     Serial.print(sensorP->dataId(), HEX);
+                    Serial.print(" formatdata: ");
+                    Serial.print(formatData(sensorP->dataId(), sensorP->valueM(), sensorP->valueL()));
                     Serial.print(" indexL: ");
                     Serial.print(sensorP->indexL());
                     Serial.print(" valueL: ");
@@ -379,22 +409,60 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 }
             }
         }
-        else if (packetType == RECEIVED_PACKET && data[1] == sensorIdTx_)
+        //else if (packetType == RECEIVED_PACKET && data[1] == sensorIdTx_)
+        else if (packetType == RECEIVED_PACKET && data[2] != 0x10)
         {
             frameId = data[2];
             dataId = (uint16_t)data[4] << 8 | data[3];
             value = (uint32_t)data[8] << 24 | (uint32_t)data[7] << 16 |
                     (uint16_t)data[6] << 8 | data[5];
+            // maintenance mode on
             if (frameId == 0x21 && dataId == 0xFFFF && value == 0x80)
             {
+#ifdef DEBUG
+                Serial.println("Maintenance mode ON");
+#endif
                 maintenanceMode_ = true;
                 return MAINTENANCE_ON;
             }
+            // maintenance mode off
             if (frameId == 0x20 && dataId == 0xFFFF && value == 0x80)
             {
+#ifdef DEBUG
+                Serial.println("Maintenance mode OFF");
+#endif
                 maintenanceMode_ = false;
                 return MAINTENANCE_OFF;
             }
+            // send sensorId
+            if (maintenanceMode_ && frameId == 0x30 && dataId == dataId_ && value == 1)
+            {
+#ifdef DEBUG
+                Serial.print("Sent Sensor Id: ");
+                Serial.println(crcToId(sensorId_));
+                Serial.println(sensorId_);
+#endif
+                addPacket(0x32, dataId_, 256 * (crcToId(sensorId_) - 1) + 1);
+                return SENT_SENSOR_ID;
+            }
+            // change sensorId
+            if (maintenanceMode_ && frameId == 0x31 && dataId == dataId_)
+            {
+                setSensorId(idToCrc(((value - 1) / 256) + 1));
+#ifdef DEBUG
+                Serial.print("Changed Sensor Id: ");
+                Serial.println(crcToId(sensorId_));
+#endif
+                return CHANGED_SENSOR_ID;
+            }
+#ifdef DEBUG
+                Serial.print("Received frameId: ");
+                Serial.print(frameId, HEX);
+                Serial.print(" dataId: ");
+                Serial.print(dataId, HEX);
+                Serial.print(" value: ");
+                Serial.println(value);
+#endif
             return RECEIVED_PACKET;
         }
     }
