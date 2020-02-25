@@ -1,6 +1,6 @@
 #include "ms5611.h"
 
-MS5611Interface::MS5611Interface(uint8_t address, uint8_t alphaTemp, uint8_t alphaDef) : Bmp(alphaTemp_, alphaDef_, address_)  {}
+MS5611Interface::MS5611Interface(uint8_t device, uint8_t alphaTemp, uint8_t alphaDef) : Bmp(device, alphaTemp, alphaDef)  {}
 
 bool MS5611Interface::begin()
 {

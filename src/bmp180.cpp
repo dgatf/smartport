@@ -1,63 +1,50 @@
 #include "bmp180.h"
 
-Bmp180Interface::Bmp180Interface(uint8_t address, uint8_t alphaTemp, uint8_t alphaDef) : Bmp(alphaTemp_, alphaDef_, address_) {}
+Bmp180Interface::Bmp180Interface(uint8_t device, uint8_t alphaTemp, uint8_t alphaDef) : Bmp(device, alphaTemp, alphaDef) {}
 
 bool Bmp180Interface::begin()
 {
     float c3, c4, b1;
-    if (readInt(address_, 0xAA, AC1_) &&
-        readInt(address_, 0xAC, AC2_) &&
-        readInt(address_, 0xAE, AC3_) &&
-        readUInt(address_, 0xB0, AC4_) &&
-        readUInt(address_, 0xB2, AC5_) &&
-        readUInt(address_, 0xB4, AC6_) &&
-        readInt(address_, 0xB6, VB1_) &&
-        readInt(address_, 0xB8, VB2_) &&
-        readInt(address_, 0xBA, MB_) &&
-        readInt(address_, 0xBC, MC_) &&
-        readInt(address_, 0xBE, MD_))
-    {
-        c3 = 160.0 * pow(2, -15) * AC3_;
-        c4 = pow(10, -3) * pow(2, -15) * AC4_;
-        b1 = pow(160, 2) * pow(2, -30) * VB1_;
-        c5_ = (pow(2, -15) / 160) * AC5_;
-        c6_ = AC6_;
-        mc_ = (pow(2, 11) / pow(160, 2)) * MC_;
-        md_ = MD_ / 160.0;
-        x0_ = AC1_;
-        x1_ = 160.0 * pow(2, -13) * AC2_;
-        x2_ = pow(160, 2) * pow(2, -25) * VB2_;
-        y0_ = c4 * pow(2, 15);
-        y1_ = c4 * c3;
-        y2_ = c4 * b1;
-        p0_ = (3791.0 - 8.0) / 1600.0;
-        p1_ = 1.0 - 7357.0 * pow(2, -20);
-        p2_ = 3038.0 * 100.0 * pow(2, -36);
-        return 1;
-    }
-    else
-    {
-        return 0;
-    }
-    return 0;
+    AC1_ = readInt(address_, 0xAA, BIG_ENDIAN);
+    AC2_ = readInt(address_, 0xAC, BIG_ENDIAN);
+    AC3_ = readInt(address_, 0xAE, BIG_ENDIAN);
+    AC4_ = readUInt(address_, 0xB0, BIG_ENDIAN);
+    AC5_ = readUInt(address_, 0xB2, BIG_ENDIAN);
+    AC6_ = readUInt(address_, 0xB4, BIG_ENDIAN);
+    VB1_ = readInt(address_, 0xB6, BIG_ENDIAN);
+    VB2_ = readInt(address_, 0xB8, BIG_ENDIAN);
+    MB_ = readInt(address_, 0xBA, BIG_ENDIAN);
+    MC_ = readInt(address_, 0xBC, BIG_ENDIAN);
+    MD_ = readInt(address_, 0xBE, BIG_ENDIAN);
+    c3 = 160.0 * pow(2, -15) * AC3_;
+    c4 = pow(10, -3) * pow(2, -15) * AC4_;
+    b1 = pow(160, 2) * pow(2, -30) * VB1_;
+    c5_ = (pow(2, -15) / 160) * AC5_;
+    c6_ = AC6_;
+    mc_ = (pow(2, 11) / pow(160, 2)) * MC_;
+    md_ = MD_ / 160.0;
+    x0_ = AC1_;
+    x1_ = 160.0 * pow(2, -13) * AC2_;
+    x2_ = pow(160, 2) * pow(2, -25) * VB2_;
+    y0_ = c4 * pow(2, 15);
+    y1_ = c4 * c3;
+    y2_ = c4 * b1;
+    p0_ = (3791.0 - 8.0) / 1600.0;
+    p1_ = 1.0 - 7357.0 * pow(2, -20);
+    p2_ = 3038.0 * 100.0 * pow(2, -36);
+
 }
 
 uint8_t Bmp180Interface::startTemperature()
 {
-    uint8_t data[2], result;
-
-    data[0] = BMP_REG_CONTROL;
-    data[1] = BMP180_COMMAND_TEMPERATURE;
-    result = writeBytes(address_, data, 2);
-    if (result)
-        return 5;
-    else
-        return 0;
+    uint8_t data[1] = {BMP180_COMMAND_TEMPERATURE};
+    writeBytes(address_, BMP_REG_CONTROL, data, 2);
+    return true;
 }
 
 uint8_t Bmp180Interface::startPressure()
 {
-    uint8_t data[2], result, delay;
+    uint8_t data[2], delay;
 
     data[0] = BMP_REG_CONTROL;
 
@@ -84,11 +71,8 @@ uint8_t Bmp180Interface::startPressure()
         delay = 5;
         break;
     }
-    result = writeBytes(address_, data, 2);
-    if (result)
-        return delay; // return the delay in ms (rounded up) to wait before retrieving data
-    else
-        return 0; // or return 0 if there was a problem communicating with the BMP
+    writeBytes(address_, BMP180_COMMAND_PRESSURE0, data, 2);
+    return 1;
 }
 
 bool Bmp180Interface::readTemperature()
@@ -109,10 +93,7 @@ bool Bmp180Interface::readTemperature()
         uint8_t data[2];
         char result;
         float tu, a, t;
-
-        data[0] = BMP180_REG_RESULT;
-
-        result = readBytes(address_, data, 2);
+        result = readBytes(address_, BMP180_REG_RESULT, data, 2);
         if (result) // good read, calculate temperature
         {
             tu = (data[0] * 256.0) + data[1];
@@ -144,9 +125,7 @@ bool Bmp180Interface::readPressure()
         uint8_t data[3];
         uint8_t result;
         float pu, s, x, y, z, p;
-
-        data[0] = BMP180_REG_RESULT;
-        result = readBytes(address_, data, 3);
+        result = readBytes(address_, BMP180_REG_RESULT, data, 3);
         if (result)
         {
             pu = (data[0] * 256.0) + data[1] + (data[2] / 256.0);

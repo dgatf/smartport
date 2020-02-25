@@ -323,9 +323,14 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
 #ifdef SIM_POLL
     if (true)
     {
+        static uint16_t ts = 0;
         uint8_t data[10];
-        uint8_t packetType = RECEIVED_POLL;
-        data[1] = sensorId_;
+        uint8_t packetType = RECEIVED_NONE;
+        if (millis() - ts > 12) {
+            packetType = RECEIVED_POLL;
+            data[1] = sensorId_;
+            ts = millis();
+        }
 #else
     if (available())
     {
@@ -354,49 +359,43 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
             }
             if (sensorP != NULL && !maintenanceMode_) // else send telemetry
             {
-                Sensor *initSensorP = sensorP; // loop updating sensors until correct timestamp or 1 sensors cycle
-                while (((uint16_t)millis() - sensorP->timestamp() <= (uint16_t)sensorP->refresh() * 100) && sensorP->nextP != initSensorP)
+                static Sensor *spSensorP = sensorP; // loop sensors until correct timestamp or 1 sensors cycle
+                Sensor *initialSensorP = spSensorP;
+                while (((uint16_t)millis() - spSensorP->timestamp() <= (uint16_t)spSensorP->refresh() * 100) && spSensorP->nextP != initialSensorP)
                 {
-                    sensorP->setValueL(sensorP->read(sensorP->indexL()));
-                    sensorP->setValueM(sensorP->read(sensorP->indexM()));
-                    sensorP = sensorP->nextP;
+                    spSensorP = spSensorP->nextP;
                 }
-                if ((uint16_t)millis() - sensorP->timestamp() >= (uint16_t)sensorP->refresh() * 100)
+                if ((uint16_t)millis() - spSensorP->timestamp() >= (uint16_t)spSensorP->refresh() * 100)
                 {
-
-                    sensorP->setValueL(sensorP->read(sensorP->indexL()));
 #ifdef DEBUG
-                    Serial.print("dataId: ");
-                    Serial.print(sensorP->dataId(), HEX);
-                    Serial.print(" formatdata: ");
-                    Serial.print(formatData(sensorP->dataId(), sensorP->valueM(), sensorP->valueL()));
-                    Serial.print(" indexL: ");
-                    Serial.print(sensorP->indexL());
-                    Serial.print(" valueL: ");
-                    Serial.print(sensorP->valueL());
+                    Serial.print("id: ");
+                    Serial.print(spSensorP->dataId(), HEX);
+                    Serial.print(" iL: ");
+                    Serial.print(spSensorP->indexL());
+                    Serial.print(" vL: ");
+                    Serial.print(spSensorP->valueL());
+                    Serial.print(" f: ");
+                    Serial.print(formatData(spSensorP->dataId(), spSensorP->valueM(), spSensorP->valueL()));
                     Serial.print(" ts: ");
-                    Serial.println(sensorP->timestamp());
-#endif
-                    if (sensorP->indexM() != 255)
+                    Serial.println(spSensorP->timestamp());
+                    if (spSensorP->indexM() != 255)
                     {
-                        sensorP->setValueM(sensorP->read(sensorP->indexM()));
-#ifdef DEBUG
-                        Serial.print("dataId: ");
-                        Serial.print(sensorP->dataId(), HEX);
-                        Serial.print(" indexM: ");
-                        Serial.print(sensorP->indexM());
-                        Serial.print(" valueM: ");
-                        Serial.print(sensorP->valueM());
+                        Serial.print("id: ");
+                        Serial.print(spSensorP->dataId(), HEX);
+                        Serial.print(" iM: ");
+                        Serial.print(spSensorP->indexM());
+                        Serial.print(" vM: ");
+                        Serial.print(spSensorP->valueM());
                         Serial.print(" ts: ");
-                        Serial.println(sensorP->timestamp());
-#endif
+                        Serial.println(spSensorP->timestamp());
                     }
-                    sendData(sensorP->frameId(), sensorP->dataId(), formatData(sensorP->dataId(), sensorP->valueM(), sensorP->valueL()));
-                    sensorP->setTimestamp(millis());
-                    dataId = sensorP->dataId();
+#endif
+                    sendData(spSensorP->frameId(), spSensorP->dataId(), formatData(spSensorP->dataId(), spSensorP->valueM(), spSensorP->valueL()));
+                    spSensorP->setTimestamp(millis());
+                    dataId = spSensorP->dataId();
                     frameId = 0;
                     value = 0;
-                    sensorP = sensorP->nextP;
+                    spSensorP = spSensorP->nextP;
                     return SENT_TELEMETRY;
                 }
                 else
@@ -404,12 +403,10 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                     dataId = 0;
                     value = 0;
                     sendVoid();
-                    sensorP = sensorP->nextP;
                     return SENT_VOID;
                 }
             }
         }
-        //else if (packetType == RECEIVED_PACKET && data[1] == sensorIdTx_)
         else if (packetType == RECEIVED_PACKET && data[2] != 0x10)
         {
             frameId = data[2];
@@ -466,7 +463,12 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
             return RECEIVED_PACKET;
         }
     }
+    // update sensor
+    sensorP->setValueL(sensorP->read(sensorP->indexL()));
+    sensorP->setValueM(sensorP->read(sensorP->indexM()));
+    sensorP = sensorP->nextP;
     return SENT_NONE;
+
 }
 
 uint8_t Smartport::update()

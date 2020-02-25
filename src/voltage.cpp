@@ -14,5 +14,6 @@ float VoltageInterface::read(uint8_t pin)
 #ifdef SIM_SENSORS
     return 34;
 #endif
-    return calcAverage(alpha_ / 100, value_, readVoltage());
+    value_ = calcAverage(alpha_ / 100, value_, readVoltage());
+    return value_;
 }

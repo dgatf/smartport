@@ -1,7 +1,6 @@
 #ifndef BMP280_H
 #define BMP280_H
 
-#define BMP280_ADDR 0x76
 #define BMP280_REGISTER_DIG_T1 0x88
 #define BMP280_REGISTER_DIG_T2 0x8A
 #define BMP280_REGISTER_DIG_T3 0x8C
@@ -62,10 +61,10 @@ private:
     uint16_t T1_, P1_;
     int16_t T2_, T3_, P2_, P3_, P4_, P5_, P6_, P7_, P8_, P9_;
     uint32_t t_fine_;
-    uint8_t address_ = BMP280_ADDR;
-    bool readTemperature();
-    bool readPressure(); 
+    
 public:
+    float readTemperature();
+    float readPressure(); 
     enum sensor_sampling
     {
         SAMPLING_NONE = 0x00,
@@ -75,7 +74,7 @@ public:
         SAMPLING_X8 = 0x04,
         SAMPLING_X16 = 0x05
     };
-    Bmp280Interface(uint8_t address_, uint8_t alphaTemp_, uint8_t alphaDef_);
+    Bmp280Interface(uint8_t device, uint8_t alphaTemp, uint8_t alphaDef);
     bool begin();
     float read(uint8_t index);
 };

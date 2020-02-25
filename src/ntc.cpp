@@ -1,6 +1,6 @@
 #include "ntc.h"
 
-NtcInterface::NtcInterface(uint8_t pin, uint8_t alpha) : VoltageInterface(pin_, alpha_) {}
+NtcInterface::NtcInterface(uint8_t pin, uint8_t alpha) : VoltageInterface(pin, alpha) {}
 
 float NtcInterface::read(uint8_t index)
 {
@@ -14,7 +14,8 @@ float NtcInterface::read(uint8_t index)
 #ifdef SIM_SENSORS
     return 56;
 #endif
-    return calcAverage(alpha_, value_, temperature);
+    value_ = calcAverage(alpha_, value_, temperature);
+    return value_;
 }
 
 /* 1 / (NTC_A1 + NTC_B1 * log(ntcR_Rref) + NTC_C1 * pow(log(ntcR_Rref), 2) + NTC_D1 * pow(log(ntcR_Rref), 3)) - 273.15;*/
