@@ -203,7 +203,7 @@ private:
     Stream &serial_;
     Sensor *sensorP = NULL;
     Packet *packetP = NULL;
-    uint8_t sensorId_, sensorIdTx_;
+    uint8_t sensorId_ = 0;
     uint16_t dataId_;
     bool maintenanceMode_ = false;
     void sendByte(uint8_t c, uint16_t *crcp);
