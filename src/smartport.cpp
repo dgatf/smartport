@@ -114,7 +114,7 @@ uint8_t Smartport::available()
 uint8_t Smartport::idToCrc(uint8_t sensorId)
 {
     const uint8_t sensorIdMatrix[28] = {0x00, 0xA1, 0x22, 0x83, 0xE4, 0x45, 0xC6, 0x67, 0x48, 0xE9, 0x6A, 0xCB, 0xAC, 0xD, 0x8E, 0x2F, 0xD0, 0x71, 0xF2, 0x53, 0x34, 0x95, 0x16, 0xB7, 0x98, 0x39, 0xBA, 0x1B};
-    if (sensorId > 28)
+    if (sensorId < 1 || sensorId > 28)
     {
         return 0;
     }
@@ -208,8 +208,9 @@ uint32_t Smartport::formatData(uint16_t dataId, float valueM, float valueL)
     if (dataId >= ESC_POWER_FIRST_ID && dataId <= ESC_POWER_LAST_ID)
         return (uint32_t)round(valueM * 100) << 16 | (uint16_t)round(valueL * 100);
 
-    if (dataId >= ESC_RPM_CONS_FIRST_ID && dataId <= ESC_RPM_CONS_LAST_ID)
+    if (dataId >= ESC_RPM_CONS_FIRST_ID && dataId <= ESC_RPM_CONS_LAST_ID) {
         return (uint32_t)round(valueM) << 16 | (uint16_t)round((valueL) / 100);
+    }
 
     if (dataId >= SBEC_POWER_FIRST_ID && dataId <= SBEC_POWER_LAST_ID)
         return (uint32_t)round(valueM * 1000) << 16 | (uint16_t)round((valueL)*1000);
@@ -248,7 +249,7 @@ bool Smartport::addPacket(uint8_t frameId, uint16_t dataId, uint32_t value)
 {
     if (packetP == NULL)
     {
-        packetP = (Packet *)malloc(sizeof(Packet));
+        packetP = new Packet;
         packetP->frameId = frameId;
         packetP->dataId = dataId;
         packetP->value = value;
@@ -266,7 +267,7 @@ void Smartport::deleteSensors()
         do
         {
             nextSensorP = sensorP->nextP;
-            free(sensorP);
+            delete sensorP;
             sensorP = nextSensorP;
         } while (sensorP != firstSensorP);
         sensorP = NULL;
@@ -339,22 +340,22 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
         packetType = read(data);
 #endif
         if (packetType == RECEIVED_POLL && data[1] == sensorId_)
-        {        
+        {
             if (packetP != NULL && maintenanceMode_) // if maintenance send packet
             {
-                sendData(packetP->frameId, packetP->dataId, packetP->value);
-                dataId = packetP->dataId;
-                value = packetP->value;
-                free(packetP);
-                packetP = NULL;
 #ifdef DEBUG
                 Serial.print("Sent frameId: ");
-                Serial.print(packetP->frameId);
+                Serial.print(packetP->frameId, HEX);
                 Serial.print(" dataId: ");
-                Serial.print(packetP->dataId);
+                Serial.print(packetP->dataId, HEX);
                 Serial.print(" value: ");
                 Serial.println(packetP->value);
 #endif
+                sendData(packetP->frameId, packetP->dataId, packetP->value);
+                dataId = packetP->dataId;
+                value = packetP->value;
+                delete packetP;
+                packetP = NULL;
                 return SENT_PACKET;
             }
             if (sensorP != NULL && !maintenanceMode_) // else send telemetry
@@ -367,7 +368,7 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 }
                 if ((uint16_t)millis() - spSensorP->timestamp() >= (uint16_t)spSensorP->refresh() * 100)
                 {
-#ifdef DEBUG
+#ifdef DEBUG2
                     Serial.print("id: ");
                     Serial.print(spSensorP->dataId(), HEX);
                     Serial.print(" iL: ");
@@ -436,8 +437,9 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
             {
 #ifdef DEBUG
                 Serial.print("Sent Sensor Id: ");
-                Serial.println(crcToId(sensorId_));
-                Serial.println(sensorId_);
+                Serial.print(crcToId(sensorId_));
+                Serial.print(" ");
+                Serial.println(sensorId_, HEX);
 #endif
                 addPacket(0x32, dataId_, 256 * (crcToId(sensorId_) - 1) + 1);
                 return SENT_SENSOR_ID;
@@ -465,8 +467,10 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
     }
     // update sensor
     if (sensorP != NULL) {
-      sensorP->setValueL(sensorP->read(sensorP->indexL()));
-      sensorP->setValueM(sensorP->read(sensorP->indexM()));
+      if (sensorP->indexL() != 255)
+        sensorP->setValueL(sensorP->read(sensorP->indexL()));
+      if (sensorP->indexM() != 255)
+        sensorP->setValueM(sensorP->read(sensorP->indexM()));
       sensorP = sensorP->nextP;
     }
     return SENT_NONE;

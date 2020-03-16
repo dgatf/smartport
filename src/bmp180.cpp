@@ -32,7 +32,6 @@ bool Bmp180Interface::begin()
     p0_ = (3791.0 - 8.0) / 1600.0;
     p1_ = 1.0 - 7357.0 * pow(2, -20);
     p2_ = 3038.0 * 100.0 * pow(2, -36);
-
 }
 
 uint8_t Bmp180Interface::startTemperature()
@@ -99,7 +98,7 @@ bool Bmp180Interface::readTemperature()
             tu = (data[0] * 256.0) + data[1];
             a = c5_ * (tu - c6_);
             t = a + (mc_ / (a + md_));
-            temperature_ = calcAverage(alphaTemp_, temperature_, t);
+            temperature_ = t; //calcAverage(alphaTemp_, temperature_, t);
         }
         return result;
     }
@@ -121,7 +120,6 @@ bool Bmp180Interface::readPressure()
     }
     if (state_ == BMP180_STATE_WAIT_PRESS && millis() - timestamp_ > delay_)
     {
-
         uint8_t data[3];
         uint8_t result;
         float pu, s, x, y, z, p;
@@ -134,7 +132,7 @@ bool Bmp180Interface::readPressure()
             y = (y2_ * pow(s, 2)) + (y1_ * s) + y0_;
             z = (pu - x) / y;
             p = (p2_ * pow(z, 2)) + (p1_ * z) + p0_;
-            pressure_ = calcAverage(alphaDef_, pressure_, p);
+            pressure_ = p; //calcAverage(alphaDef_, pressure_, p);
         }
         return result;
     }
@@ -151,12 +149,15 @@ float Bmp180Interface::read(uint8_t index)
         readTemperature();
         return temperature_;
     }
+    if (index == BMP_ALTITUDE) {
 #ifdef SIM_SENSORS
-    return 126;
+        return 126;
 #endif
-    if (readPressure())
-    {
-        calcAltitude();
+        if (readPressure())
+        {
+            calcAltitude();
+        }
+        return altitude_;
     }
-    return altitude_;
+    return 0;
 }

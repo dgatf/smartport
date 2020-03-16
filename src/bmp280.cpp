@@ -41,10 +41,9 @@ float Bmp280Interface::readTemperature()
 float Bmp280Interface::readPressure()
 {
     int64_t var1, var2, p;
-    float T;
     uint8_t data[3];
     uint32_t adc_P;
-    T = readTemperature();
+    readTemperature();
     readBytes(device_, BMP280_REGISTER_PRESSUREDATA, data, 3);
     adc_P = ((uint32_t)data[0] << 16 | (uint32_t)data[1] << 8 | data[2]) >> 4;
     var1 = ((int64_t)t_fine_) - 128000;
@@ -80,13 +79,16 @@ float Bmp280Interface::read(uint8_t index)
         readTemperature();
         return temperature_;
     }
+    if (index == BMP_ALTITUDE) {
 #ifdef SIM_SENSORS
-    return 500;
+        return 500;
 #endif
-    if (readPressure())
-    {
-        altitude_ = calcAltitude();
-        if (altitude_ < 0 ) altitude_ = 0;
+        if (readPressure())
+        {
+            altitude_ = calcAltitude();
+            if (altitude_ < 0 ) altitude_ = 0;
+        }
+        return altitude_;
     }
-    return altitude_;
+    return 0;
 }
