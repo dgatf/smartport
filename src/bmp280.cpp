@@ -2,13 +2,13 @@
 
 Bmp280Interface::Bmp280Interface(uint8_t device, uint8_t alphaTemp, uint8_t alphaDef) : Bmp(device, alphaTemp, alphaDef) {}
 
-bool Bmp280Interface::begin()
+void Bmp280Interface::begin()
 {
     uint8_t configReg[1] = {(STANDBY_MS_250 << 5) | (FILTER_X8 << 2) | 0};
     uint8_t measureReg[1] = {(BMP280_OVERSAMPLING_X4 << 5) | (BMP280_OVERSAMPLING_X4 << 2) | BMP280_NORMAL};
     writeBytes(device_, BMP280_REGISTER_CONFIG, configReg, 1);
     writeBytes(device_, BMP280_REGISTER_CONTROL, measureReg, 1);
-    T1_ = readUInt(device_, 0x88, LITTLE_ENDIAN); 
+    T1_ = readUInt(device_, 0x88, LITTLE_ENDIAN);
     T2_ = readInt(device_, 0x8A, LITTLE_ENDIAN);
     T3_ = readInt(device_, 0x8C, LITTLE_ENDIAN);
     P1_ = readUInt(device_, 0x8E, LITTLE_ENDIAN);
@@ -20,7 +20,6 @@ bool Bmp280Interface::begin()
     P7_ = readInt(device_, 0x9A, LITTLE_ENDIAN);
     P8_ = readInt(device_, 0x9C, LITTLE_ENDIAN);
     P9_ = readInt(device_, 0x9E, LITTLE_ENDIAN);
-    return true;
 }
 
 float Bmp280Interface::readTemperature()
@@ -79,14 +78,16 @@ float Bmp280Interface::read(uint8_t index)
         readTemperature();
         return temperature_;
     }
-    if (index == BMP_ALTITUDE) {
+    if (index == BMP_ALTITUDE)
+    {
 #ifdef SIM_SENSORS
         return 500;
 #endif
         if (readPressure())
         {
             altitude_ = calcAltitude();
-            if (altitude_ < 0 ) altitude_ = 0;
+            if (altitude_ < 0)
+                altitude_ = 0;
         }
         return altitude_;
     }

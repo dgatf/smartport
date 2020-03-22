@@ -11,6 +11,11 @@ Sensor::Sensor(uint16_t dataId, uint8_t indexM, uint8_t indexL, uint8_t refresh,
 Sensor::Sensor(uint16_t dataId, uint8_t indexL, uint8_t refresh, AbstractDevice *device) : dataId_(dataId), indexL_(indexL), refresh_(refresh), device_(device) {}
 Sensor::Sensor(uint16_t dataId, uint8_t refresh, AbstractDevice *device) : dataId_(dataId), refresh_(refresh), device_(device) {}
 
+Sensor::~Sensor()
+{
+    delete device_;
+}
+
 float Sensor::read(uint8_t index)
 {
     return device_->read(index);
@@ -125,10 +130,12 @@ uint8_t Smartport::crcToId(uint8_t sensorIdCrc)
 {
     const uint8_t sensorIdMatrix[29] = {0x00, 0xA1, 0x22, 0x83, 0xE4, 0x45, 0xC6, 0x67, 0x48, 0xE9, 0x6A, 0xCB, 0xAC, 0xD, 0x8E, 0x2F, 0xD0, 0x71, 0xF2, 0x53, 0x34, 0x95, 0x16, 0xB7, 0x98, 0x39, 0xBA, 0x1B, 0x0};
     uint8_t cont = 0;
-    while (sensorIdCrc != sensorIdMatrix[cont] && cont < 28) {
-        cont++;    
+    while (sensorIdCrc != sensorIdMatrix[cont] && cont < 28)
+    {
+        cont++;
     }
-    if (cont == 28) return 0;
+    if (cont == 28)
+        return 0;
     return cont + 1;
 }
 
@@ -208,7 +215,8 @@ uint32_t Smartport::formatData(uint16_t dataId, float valueM, float valueL)
     if (dataId >= ESC_POWER_FIRST_ID && dataId <= ESC_POWER_LAST_ID)
         return (uint32_t)round(valueM * 100) << 16 | (uint16_t)round(valueL * 100);
 
-    if (dataId >= ESC_RPM_CONS_FIRST_ID && dataId <= ESC_RPM_CONS_LAST_ID) {
+    if (dataId >= ESC_RPM_CONS_FIRST_ID && dataId <= ESC_RPM_CONS_LAST_ID)
+    {
         return (uint32_t)round(valueM) << 16 | (uint16_t)round((valueL) / 100);
     }
 
@@ -262,7 +270,8 @@ void Smartport::deleteSensors()
 {
     if (sensorP != NULL)
     {
-        Sensor *firstSensorP = sensorP;
+        Sensor *firstSensorP;
+        firstSensorP = sensorP;
         Sensor *nextSensorP;
         do
         {
@@ -272,49 +281,68 @@ void Smartport::deleteSensors()
         } while (sensorP != firstSensorP);
         sensorP = NULL;
     }
+    if (packetP != NULL)
+    {
+        delete packetP;
+        packetP = NULL;
+    }
 }
 
-uint8_t Smartport::read(uint8_t *data)
+uint8_t Smartport::read(uint8_t &sensorId, uint8_t &frameId, uint16_t &dataId, uint32_t &value)
 {
-    uint8_t cont = 0;
     if (serial_.available())
     {
+        uint8_t data[9];
+        boolean header = false;
+        uint8_t cont = 0;
         uint16_t tsRead = millis();
-        uint16_t crc = 0;
-        while ((uint16_t)millis() - tsRead < SMARTPORT_TIMEOUT || cont == 11)
+        while ((uint16_t)millis() - tsRead < SMARTPORT_TIMEOUT)
         {
             if (serial_.available())
             {
-                data[cont] = serial_.read();
-                if (data[cont] == 0x7D)
+                tsRead = millis();
+                if (serial_.peek() == 0x7E)
                 {
-                    data[cont] = serial_.read() ^ 0x20;
+                    header = true;
+                    cont = 0;
+                    serial_.read();
                 }
-                cont++;
+                else {
+                    data[cont] = serial_.read();
+                    if (header) {
+                        if (data[cont] == 0x7D)
+                            data[cont] = serial_.read() ^ 0x20;
+                        cont++;
+                    }
+                }
+                if (cont == 9)
+                {
+                    uint16_t crc = 0;
+                    for (uint8_t i = 1; i < 8; i++)
+                    {
+                        crc += data[i];
+                        crc += crc >> 8;
+                        crc &= 0x00FF;
+                    }
+                    crc = 0xFF - (uint8_t)crc;
+                    if (crc == data[8])
+                    {
+                        sensorId = data[0];
+                        frameId = data[1];
+                        dataId = (uint16_t)data[3] << 8 | data[2];
+                        value = (uint32_t)data[7] << 24 | (uint32_t)data[6] << 16 |
+                                (uint16_t)data[5] << 8 | data[4];
+                        return RECEIVED_PACKET;
+                    }
+                    cont = 0;
+                }
             }
         }
-        if (data[0] != 0x7E)
-            return RECEIVED_NONE;
-        if (cont == 10)
+        if (cont == 1)
         {
-            for (uint8_t i = 2; i < 9; i++)
-            {
-                crc += data[i];
-                crc += crc >> 8;
-                crc &= 0x00FF;
-            }
-            crc = 0xFF - (uint8_t)crc;
-            if (crc != data[9])
-            {
-                return RECEIVED_NONE;
-            }
-            else
-            {
-                return RECEIVED_PACKET;
-            }
-        }
-        if (cont == 2)
+            sensorId = data[0];
             return RECEIVED_POLL;
+        }
     }
     return RECEIVED_NONE;
 }
@@ -325,24 +353,24 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
     if (true)
     {
         static uint16_t ts = 0;
-        uint8_t data[10] = {0};
+        uint8_t sensorId = sensorId_;
         uint8_t packetType = RECEIVED_NONE;
-        if (millis() - ts > 12) {
+        if (millis() - ts > 12)
+        {
             packetType = RECEIVED_POLL;
-            data[1] = sensorId_;
             ts = millis();
         }
 #else
     if (available())
     {
-        uint8_t data[10];
-        uint8_t packetType;
-        packetType = read(data);
+        uint8_t sensorId;
+        uint8_t packetType = read(sensorId, frameId, dataId, value);
 #endif
-        if (packetType == RECEIVED_POLL && data[1] == sensorId_)
+        if (packetType == RECEIVED_POLL && sensorId == sensorId_)
         {
             if (packetP != NULL && maintenanceMode_) // if maintenance send packet
             {
+                sendData(packetP->frameId, packetP->dataId, packetP->value);
 #ifdef DEBUG
                 Serial.print("Sent frameId: ");
                 Serial.print(packetP->frameId, HEX);
@@ -351,7 +379,6 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 Serial.print(" value: ");
                 Serial.println(packetP->value);
 #endif
-                sendData(packetP->frameId, packetP->dataId, packetP->value);
                 dataId = packetP->dataId;
                 value = packetP->value;
                 delete packetP;
@@ -368,6 +395,7 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 }
                 if ((uint16_t)millis() - spSensorP->timestamp() >= (uint16_t)spSensorP->refresh() * 100)
                 {
+                    sendData(spSensorP->frameId(), spSensorP->dataId(), formatData(spSensorP->dataId(), spSensorP->valueM(), spSensorP->valueL()));
 #ifdef DEBUG2
                     Serial.print("id: ");
                     Serial.print(spSensorP->dataId(), HEX);
@@ -391,7 +419,6 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                         Serial.println(spSensorP->timestamp());
                     }
 #endif
-                    sendData(spSensorP->frameId(), spSensorP->dataId(), formatData(spSensorP->dataId(), spSensorP->valueM(), spSensorP->valueL()));
                     spSensorP->setTimestamp(millis());
                     dataId = spSensorP->dataId();
                     frameId = 0;
@@ -408,12 +435,8 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 }
             }
         }
-        else if (packetType == RECEIVED_PACKET && data[2] != 0x10)
+        else if (packetType == RECEIVED_PACKET && frameId != 0x10)
         {
-            frameId = data[2];
-            dataId = (uint16_t)data[4] << 8 | data[3];
-            value = (uint32_t)data[8] << 24 | (uint32_t)data[7] << 16 |
-                    (uint16_t)data[6] << 8 | data[5];
             // maintenance mode on
             if (frameId == 0x21 && dataId == 0xFFFF && value == 0x80)
             {
@@ -433,7 +456,7 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 return MAINTENANCE_OFF;
             }
             // send sensorId
-            if (maintenanceMode_ && frameId == 0x30 && dataId == dataId_ && value == 1)
+            if (maintenanceMode_ && frameId == 0x30 && dataId == dataId_ && value == 0x01)
             {
 #ifdef DEBUG
                 Serial.print("Sent Sensor Id: ");
@@ -441,13 +464,13 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 Serial.print(" ");
                 Serial.println(sensorId_, HEX);
 #endif
-                addPacket(0x32, dataId_, 256 * (crcToId(sensorId_) - 1) + 1);
+                addPacket(0x32, dataId_, (crcToId(sensorId_) - 1) << 8 | 0x01);
                 return SENT_SENSOR_ID;
             }
             // change sensorId
-            if (maintenanceMode_ && frameId == 0x31 && dataId == dataId_)
+            if (maintenanceMode_ && frameId == 0x31 && dataId == dataId_ && (uint8_t)value == 0x01)
             {
-                setSensorId(idToCrc(((value - 1) / 256) + 1));
+                setSensorId(idToCrc((value >> 8) + 1));
 #ifdef DEBUG
                 Serial.print("Changed Sensor Id: ");
                 Serial.println(crcToId(sensorId_));
@@ -455,26 +478,26 @@ uint8_t Smartport::update(uint8_t &frameId, uint16_t &dataId, uint32_t &value)
                 return CHANGED_SENSOR_ID;
             }
 #ifdef DEBUG
-                Serial.print("Received frameId: ");
-                Serial.print(frameId, HEX);
-                Serial.print(" dataId: ");
-                Serial.print(dataId, HEX);
-                Serial.print(" value: ");
-                Serial.println(value);
+            Serial.print("Received frameId: ");
+            Serial.print(frameId, HEX);
+            Serial.print(" dataId: ");
+            Serial.print(dataId, HEX);
+            Serial.print(" value: ");
+            Serial.println(value);
 #endif
             return RECEIVED_PACKET;
         }
     }
     // update sensor
-    if (sensorP != NULL) {
-      if (sensorP->indexL() != 255)
-        sensorP->setValueL(sensorP->read(sensorP->indexL()));
-      if (sensorP->indexM() != 255)
-        sensorP->setValueM(sensorP->read(sensorP->indexM()));
-      sensorP = sensorP->nextP;
+    if (sensorP != NULL)
+    {
+        if (sensorP->indexL() != 255)
+            sensorP->setValueL(sensorP->read(sensorP->indexL()));
+        if (sensorP->indexM() != 255)
+            sensorP->setValueM(sensorP->read(sensorP->indexM()));
+        sensorP = sensorP->nextP;
     }
     return SENT_NONE;
-
 }
 
 uint8_t Smartport::update()

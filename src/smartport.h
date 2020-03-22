@@ -11,7 +11,7 @@
 #define SMARTPORT_H
 
 #define LED_SMARTPORT LED_BUILTIN
-#define SMARTPORT_TIMEOUT 2
+#define SMARTPORT_TIMEOUT 3
 
 //#define DEBUG
 //#define SIM_POLL
@@ -152,13 +152,14 @@
 #define SENT_SENSOR_ID 9
 #define CHANGED_SENSOR_ID 10
 
-
 #include <Arduino.h>
 
-class AbstractDevice {
+class AbstractDevice
+{
 private:
 protected:
     float calcAverage(float alpha, float value, float newValue);
+
 public:
     AbstractDevice();
     virtual float read(uint8_t index) = 0;
@@ -172,10 +173,12 @@ protected:
     uint8_t indexL_ = 0, indexM_ = 255;
     uint8_t refresh_;
     AbstractDevice *device_;
+
 public:
     Sensor(uint16_t dataId, uint8_t indexM, uint8_t indexL, uint8_t refresh, AbstractDevice *device);
     Sensor(uint16_t dataId, uint8_t indexL, uint8_t refresh, AbstractDevice *device);
     Sensor(uint16_t dataId, uint8_t refresh, AbstractDevice *device);
+    ~Sensor();
     Sensor *nextP = NULL;
     uint16_t timestamp();
     void setTimestamp(uint16_t dataId);
@@ -207,6 +210,7 @@ private:
     uint16_t dataId_;
     bool maintenanceMode_ = false;
     void sendByte(uint8_t c, uint16_t *crcp);
+
 public:
     //Smartport(Stream &serial, uint8_t dataId, uint8_t sensorId, uint8_t sensorIdTx);
     Smartport(Stream &serial);
@@ -214,7 +218,7 @@ public:
     uint8_t idToCrc(uint8_t sensorId);
     uint8_t crcToId(uint8_t sensorIdCrc);
     uint8_t available();
-    uint8_t read(uint8_t *data);
+    uint8_t read(uint8_t &sensorId, uint8_t &frameId, uint16_t &dataId, uint32_t &value);
     void sendData(uint16_t dataId, uint32_t val);
     void sendData(uint8_t frameId, uint16_t dataId, uint32_t val);
     void sendVoid();
