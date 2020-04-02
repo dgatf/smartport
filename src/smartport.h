@@ -13,7 +13,7 @@
 #define LED_SMARTPORT LED_BUILTIN
 #define SMARTPORT_TIMEOUT 3
 
-//#define DEBUG
+#define DEBUG
 //#define SIM_POLL
 //#define SIM_SENSORS
 
